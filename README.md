@@ -21,8 +21,8 @@ The application features a modern, clean light-themed web dashboard powered by *
 - **🔤 EasyOCR Character Recognition**: Deep CRNN network constrained to standard alphanumeric character sets with left-to-right fragment stitching.
 - **⏱️ Intelligent Duplicate Suppression**: Configurable 30-second cooldown per unique registration number prevents database spamming.
 - **💻 Dual-Mode Deployment**:
-  - **Web Dashboard (`app.py`)**: Real-time MJPEG camera stream, live statistics, plate search filter, audio chime alerts, and CSV/JSON export tools.
-  - **Desktop GUI (`main.py`)**: Lightweight Tkinter window with live bounding box overlay and terminal output.
+  - **Web Dashboard (`app.py`)**: Real-time MJPEG camera stream, video file upload & analysis, live frame-by-frame preview, annotated video download, plate crop gallery, search filter, and CSV/JSON export tools.
+  - **Desktop GUI & CLI (`main.py`)**: Lightweight Tkinter window with live bounding box overlay, optional `--video` file processing, and `--save-video` export.
 - **🌐 Complete Multi-Page Web Platform**:
   - **Dashboard (`index.html`)**: Real-time detection, live camera feed, FPS metrics, and interactive records table.
   - **User Guide (`guide.html`)**: Step-by-step setup manual, camera alignment angles, and troubleshooting FAQ.
@@ -150,21 +150,28 @@ Device Name: NVIDIA GeForce RTX 3050 6GB Laptop GPU
    - Annotated frames stream directly to the browser with detected plates, confidence values, and FPS.
 
 #### Web Dashboard Features:
+- **📹 Live Camera Mode**: Stream webcam feed in real-time with sub-millisecond YOLO plate detection and EasyOCR reading.
+- **🎬 Video File Upload Mode**: Drag and drop traffic or dashcam video files (MP4, AVI, MOV, MKV, WebM) to automatically analyze every vehicle, preview live frames, inspect high-contrast plate crops, and download the annotated output video.
 - **Interactive Search**: Type in the search box above the records table to filter plates instantly.
 - **Audio Chime on Scan**: Plays a gentle synthesized chime (via Web Audio API) whenever a new unique plate is logged.
-- **One-Click Export**: Click **CSV** or **JSON** to download your plate records log.
+- **One-Click Export**: Click **CSV** or **JSON** to download your plate records log or video detection results.
 - **Auto-Refresh Toggle**: Toggle live polling on or off with configurable 2.5s polling.
 
 ---
 
-### Option B: Desktop Tkinter GUI
+### Option B: Desktop Tkinter GUI & Video CLI
 
 For standalone desktop testing without a web browser:
 ```powershell
+# Live webcam scanner
 python main.py
+
+# Or process a video file directly from the terminal
+python main.py --video traffic.mp4 --save-video annotated_traffic.mp4
 ```
 - A Tkinter preview window opens displaying live annotations and detected text.
 - Press **Q** or close the window to stop the scanner.
+- When processing a video file, a formatted summary table of all recognized plates is printed to the terminal upon completion.
 
 > ⚠️ **Important Camera Rule**: A physical webcam can only be claimed by one program at a time. Do not run `python main.py` and `python app.py` simultaneously on the same camera index.
 

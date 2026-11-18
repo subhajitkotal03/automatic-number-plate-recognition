@@ -1,4 +1,6 @@
+import argparse
 import json
+import os
 import re
 import time
 import tkinter as tk
@@ -10,6 +12,10 @@ import cv2
 import easyocr
 import torch
 from PIL import Image, ImageTk
+
+BASE_DIR = Path(__file__).resolve().parent
+os.environ.setdefault("YOLO_CONFIG_DIR", str(BASE_DIR / ".ultralytics"))
+
 from ultralytics import YOLO
 
 
@@ -18,7 +24,7 @@ MODEL_PATH = str(BASE_DIR / "yolo11x_plate-detect.pt")
 LOG_PATH = BASE_DIR / "plate_records.json"
 CAMERA_NUMBER = 0
 DETECTION_CONFIDENCE = 0.60
-OCR_MIN_CONFIDENCE = 0.60
+OCR_MIN_CONFIDENCE = 0.70
 SAVE_COOLDOWN_SECONDS = 30
 OCR_INTERVAL_SECONDS = 0.40
 CAMERA_WIDTH = 896
@@ -58,20 +64,21 @@ def read_existing_records():
         return []
 
 
-def save_record(records, plate_number, ocr_confidence, detection_confidence):
+def save_record(records, plate_number, ocr_confidence, detection_confidence, source="Camera"):
     """Save one recognized plate, timestamp, and confidence values to JSON."""
     record = {
         "plate_number": plate_number,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "ocr_confidence": round(float(ocr_confidence), 3),
         "detection_confidence": round(float(detection_confidence), 3),
+        "source": source,
     }
     records.append(record)
 
     with LOG_PATH.open("w", encoding="utf-8") as file:
         json.dump(records, file, indent=2)
 
-    print(f"Saved plate: {plate_number} | {record['timestamp']}")
+    print(f"Saved plate: {plate_number} ({source}) | {record['timestamp']}")
 
 
 def get_plate_text(reader, plate_crop):
@@ -152,25 +159,56 @@ def open_camera():
 
 
 def main():
+    parser = argparse.ArgumentParser(description="PlateVision: GPU-Accelerated License Plate Scanner")
+    parser.add_argument("--video", "-v", type=str, default=None, help="Path to video file to process (defaults to webcam)")
+    parser.add_argument("--save-video", "-s", type=str, default=None, help="Path to save annotated output video")
+    args = parser.parse_args()
+
     model = YOLO(MODEL_PATH)
     reader = easyocr.Reader(["en"], gpu=True, verbose=False)
     records = read_existing_records()
     last_saved = {}
-    video = open_camera()
+    
+    is_video_file = bool(args.video)
+    if is_video_file:
+        video_path = Path(args.video)
+        if not video_path.exists():
+            print(f"Error: Video file not found: {video_path}")
+            return
+        video = cv2.VideoCapture(str(video_path))
+        source_name = f"Video: {video_path.name}"
+        total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        video_fps = video.get(cv2.CAP_PROP_FPS) or 30.0
+        print(f"Processing video: {video_path.name} ({total_frames} frames, {video_fps:.1f} FPS)")
+    else:
+        video = open_camera()
+        source_name = "Camera"
+        total_frames = None
+        video_fps = CAMERA_FPS
+
+    video_writer = None
+    if args.save_video and video.isOpened():
+        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        video_writer = cv2.VideoWriter(args.save_video, fourcc, min(video_fps, 30.0), (width, height))
+        print(f"Annotated video will be saved to: {args.save_video}")
+
     preview_window, preview_label = create_preview_window()
     last_ocr_time = 0.0
     previous_frame_time = time.perf_counter()
     displayed_fps = 0.0
+    detected_video_plates = {}
+    frame_index = 0
 
     if not video.isOpened():
-        print("Camera could not be opened. Check the camera number or permissions.")
+        print("Camera or video file could not be opened. Check file path or permissions.")
         return
 
     if preview_window:
         print(
             f"Scanner started on CUDA GPU {GPU_DEVICE}: {GPU_NAME} "
-            f"({GPU_VRAM_GIB:.1f} GiB VRAM). Point the camera at a license plate. "
-            "Press Q or close the preview to stop."
+            f"({GPU_VRAM_GIB:.1f} GiB VRAM). Press Q to quit."
         )
     else:
         print("Scanner started. Preview unavailable; use Ctrl+C to stop.")
@@ -179,9 +217,13 @@ def main():
         while True:
             ret, frame = video.read()
             if not ret:
-                print("Could not read a frame from the camera.")
+                if is_video_file:
+                    print(f"\nFinished processing video '{video_path.name}'.")
+                else:
+                    print("Could not read a frame from the camera.")
                 break
 
+            frame_index += 1
             result = model.predict(
                 frame,
                 device=GPU_DEVICE,
@@ -192,8 +234,14 @@ def main():
             )[0]
             annotated = result.plot()
             now = time.monotonic()
-            run_ocr = now - last_ocr_time >= OCR_INTERVAL_SECONDS
+            
+            # For video files, run OCR on detected plates every ~0.25s of video
+            if is_video_file:
+                run_ocr = True
+            else:
+                run_ocr = now - last_ocr_time >= OCR_INTERVAL_SECONDS
 
+            plate_found_this_frame = False
             if result.boxes is not None:
                 for box in result.boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
@@ -203,16 +251,14 @@ def main():
                     y2 = min(frame.shape[0], y2 + padding)
                     plate_crop = frame[y1:y2, x1:x2]
 
-                    if plate_crop.size == 0:
-                        continue
-
-                    if not run_ocr:
+                    if plate_crop.size == 0 or not run_ocr:
                         continue
 
                     plate_number, ocr_confidence = get_plate_text(reader, plate_crop)
                     if not plate_number:
                         continue
 
+                    plate_found_this_frame = True
                     detection_confidence = box.conf[0].item()
                     cv2.putText(
                         annotated,
@@ -225,27 +271,52 @@ def main():
                         cv2.LINE_AA,
                     )
 
-                    if now - last_saved.get(plate_number, 0) >= SAVE_COOLDOWN_SECONDS:
+                    should_save = False
+                    if is_video_file:
+                        if plate_number not in detected_video_plates:
+                            should_save = True
+                            detected_video_plates[plate_number] = {
+                                "plate": plate_number,
+                                "frame": frame_index,
+                                "sec": frame_index / video_fps,
+                                "ocr_conf": ocr_confidence,
+                                "det_conf": detection_confidence,
+                            }
+                    else:
+                        if now - last_saved.get(plate_number, 0) >= SAVE_COOLDOWN_SECONDS:
+                            should_save = True
+                            last_saved[plate_number] = now
+
+                    if should_save:
                         save_record(
                             records,
                             plate_number,
                             ocr_confidence,
-                            detection_confidence, )
-                        last_saved[plate_number] = now
+                            detection_confidence,
+                            source=source_name,
+                        )
 
-            if run_ocr:
+            if run_ocr and (plate_found_this_frame or not is_video_file):
                 last_ocr_time = now
+
+            if video_writer is not None:
+                video_writer.write(annotated)
 
             frame_duration = time.perf_counter() - previous_frame_time
             previous_frame_time = time.perf_counter()
             instant_fps = 1 / frame_duration if frame_duration > 0 else 0.0
             displayed_fps = instant_fps if displayed_fps == 0 else displayed_fps * 0.9 + instant_fps * 0.1
+            
+            overlay_text = f"FPS: {displayed_fps:.1f}"
+            if is_video_file and total_frames:
+                pct = (frame_index / total_frames) * 100
+                overlay_text += f" | {pct:.1f}% ({frame_index}/{total_frames})"
             cv2.putText(
                 annotated,
-                f"FPS: {displayed_fps:.1f}",
+                overlay_text,
                 (15, 35),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
+                0.8,
                 (0, 255, 0),
                 2,
                 cv2.LINE_AA,
@@ -264,11 +335,25 @@ def main():
         print("Scanner stopped.")
     finally:
         video.release()
+        if video_writer is not None:
+            video_writer.release()
+            print(f"Annotated video saved successfully.")
         if preview_window:
             try:
                 preview_window.destroy()
             except tk.TclError:
                 pass
+
+    if is_video_file and detected_video_plates:
+        print("\n" + "=" * 55)
+        print("🎉 SUMMARY OF PLATES DETECTED IN VIDEO:")
+        print(f"{'Plate Number':<18} | {'Video Time':<10} | {'OCR Conf':<9} | {'Det Conf':<9}")
+        print("-" * 55)
+        for p, data in detected_video_plates.items():
+            time_str = f"{data['sec']:.1f}s (f#{data['frame']})"
+            print(f"{p:<18} | {time_str:<10} | {data['ocr_conf'] * 100:.1f}%   | {data['det_conf'] * 100:.1f}%")
+        print("=" * 55)
+
 
 
 if __name__ == "__main__":

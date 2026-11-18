@@ -11,3 +11,10 @@ __pycache__/
 .venv/
 venv/
 env/
+
+# Video processing and upload caches
+uploads/
+crops/
+processed/
+.ultralytics/
+

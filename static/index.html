@@ -58,55 +58,6 @@
       </div>
     </div>
 
-    <!-- Dashboard Title & Action Controls -->
-    <div class="dashboard-header">
-      <div class="dashboard-title">
-        <span class="tag-accent">Real-time GPU Detection & Recognition</span>
-        <h1>Camera Plate Detection Dashboard</h1>
-        <p class="page-lead">Start the scanner to stream live frames, recognize vehicle registration numbers, and inspect confidence scores.</p>
-      </div>
-      <div class="dashboard-actions">
-        <button id="startButton" class="btn btn-success">
-          <span>▶</span> Start camera
-        </button>
-        <button id="stopButton" class="btn btn-outline" disabled>
-          <span>⏹</span> Stop
-        </button>
-      </div>
-    </div>
-
-    <!-- Live Quick Stats Row -->
-    <div class="quick-stats-grid">
-      <div class="stat-pill">
-        <div class="stat-icon">🚗</div>
-        <div class="stat-info">
-          <div id="totalScans" class="stat-value">--</div>
-          <div class="stat-label">Total Plates Logged</div>
-        </div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-icon">🎯</div>
-        <div class="stat-info">
-          <div id="avgConfidence" class="stat-value">--%</div>
-          <div class="stat-label">Avg OCR Confidence</div>
-        </div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-icon">🚀</div>
-        <div class="stat-info">
-          <div id="peakFps" class="stat-value">-- FPS</div>
-          <div class="stat-label">Peak Pipeline FPS</div>
-        </div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-icon">📐</div>
-        <div class="stat-info">
-          <div class="stat-value">896 × 504</div>
-          <div class="stat-label">Stream Resolution</div>
-        </div>
-      </div>
-    </div>
-
     <!-- Quick Tip Callout Banner -->
     <div class="tip-banner">
       <div class="tip-content">
@@ -118,56 +69,201 @@
       <a href="guide.html" class="btn btn-sm btn-secondary">Read Full Setup Guide →</a>
     </div>
 
-    <!-- Error Alert Box -->
-    <div id="cameraError" class="alert alert-danger d-none" role="alert"></div>
+    <!-- Operating Mode Switcher -->
+    <div class="mode-switcher-container">
+      <div class="mode-tabs">
+        <button id="modeTabCamera" class="mode-tab active" type="button">
+          <span>📹</span>
+          <span>Live Camera Feed</span>
+        </button>
+        <button id="modeTabVideo" class="mode-tab" type="button">
+          <span>🎬</span>
+          <span>Upload Video File</span>
+        </button>
+      </div>
+    </div>
 
-    <!-- Main Grid: Video Stream + Stats Sidebar + Records Table -->
-    <div class="dashboard-grid">
-      <!-- Camera Feed Frame -->
-      <div class="grid-main">
-        <section class="card h-100">
-          <div class="card-body">
-            <div id="cameraFrame" class="camera-frame">
-              <img id="cameraPreview" alt="Live annotated license plate camera feed">
-              <div class="camera-placeholder">
-                <div class="placeholder-content">
-                  <div class="placeholder-icon">📷</div>
-                  <h2>Scanner is stopped</h2>
-                  <p>Click <strong>Start camera</strong> above to load the YOLO model onto your GPU and begin scanning.</p>
+    <!-- Live Camera Mode Container -->
+    <div id="liveCameraSection">
+      <!-- Dashboard Title & Action Controls -->
+      <div class="dashboard-header">
+        <div class="dashboard-title">
+          <span class="tag-accent">Real-time GPU Detection & Recognition</span>
+          <h1>Camera Plate Detection Dashboard</h1>
+          <p class="page-lead">Start the scanner to stream live frames, recognize vehicle registration numbers, and inspect confidence scores.</p>
+        </div>
+        <div class="dashboard-actions">
+          <button id="startButton" class="btn btn-success">
+            <span>▶</span> Start camera
+          </button>
+          <button id="stopButton" class="btn btn-outline" disabled>
+            <span>⏹</span> Stop
+          </button>
+        </div>
+      </div>
+
+      <!-- Error Alert Box -->
+      <div id="cameraError" class="alert alert-danger d-none" role="alert"></div>
+
+      <!-- Main Grid: Video Stream + Stats Sidebar -->
+      <div class="dashboard-grid">
+        <!-- Camera Feed Frame -->
+        <div class="grid-main">
+          <section class="card h-100">
+            <div class="card-body">
+              <div id="cameraFrame" class="camera-frame">
+                <img id="cameraPreview" alt="Live annotated license plate camera feed">
+                <div class="camera-placeholder">
+                  <div class="placeholder-content">
+                    <div class="placeholder-icon">📷</div>
+                    <h2>Scanner is stopped</h2>
+                    <p>Click <strong>Start camera</strong> above to load the YOLO model onto your GPU and begin scanning.</p>
+                  </div>
                 </div>
+                <span class="camera-label">
+                  <span id="cameraDot" class="status-dot"></span>
+                  <span id="cameraLabel">No camera stream</span>
+                </span>
               </div>
-              <span class="camera-label">
-                <span id="cameraDot" class="status-dot"></span>
-                <span id="cameraLabel">No camera stream</span>
-              </span>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
+
+        <!-- Performance & Latest Plate Sidebar -->
+        <div class="grid-sidebar">
+          <!-- Model FPS Metric -->
+          <section class="card">
+            <div class="card-body">
+              <h2 class="card-title">Model Performance</h2>
+              <div class="metric">
+                <div id="cameraFps" class="metric-value">-- FPS</div>
+                <small class="text-secondary">YOLO + EasyOCR inference</small>
+              </div>
+              <p class="metric-desc text-secondary">Frames are preprocessed and inferred with CUDA on your RTX 3050 GPU, then streamed as MJPEG.</p>
+            </div>
+          </section>
+
+          <!-- Latest Captured Plate -->
+          <section class="card">
+            <div class="card-body">
+              <h2 class="card-title">Latest Saved Plate</h2>
+              <div id="latestPlate" class="latest-plate-value">No record</div>
+              <p id="latestDetails" class="text-secondary">Records load automatically from the backend API.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Upload Mode Container -->
+    <div id="videoUploadSection" style="display: none;">
+      <div class="dashboard-header">
+        <div class="dashboard-title">
+          <span class="tag-accent">Video File Recognition</span>
+          <h1>Upload & Check Video License Plates</h1>
+          <p class="page-lead">Upload a traffic, surveillance, or dashcam video. The system processes every vehicle, isolations number plates with YOLO11x, extracts alphanumeric text with EasyOCR, and generates an annotated output video.</p>
+        </div>
+        <div class="dashboard-actions">
+          <button id="startVideoBtn" class="btn btn-success" disabled>
+            <span>▶</span> Analyze Video
+          </button>
+          <button id="cancelVideoBtn" class="btn btn-outline d-none">
+            <span>⏹</span> Cancel
+          </button>
+          <button id="resetVideoBtn" class="btn btn-secondary d-none">
+            <span>🔄</span> New Video
+          </button>
+        </div>
       </div>
 
-      <!-- Performance & Latest Plate Sidebar -->
-      <div class="grid-sidebar">
-        <!-- Model FPS Metric -->
-        <section class="card">
-          <div class="card-body">
-            <h2 class="card-title">Model Performance</h2>
-            <div class="metric">
-              <div id="cameraFps" class="metric-value">-- FPS</div>
-              <small class="text-secondary">YOLO + EasyOCR inference</small>
+      <!-- Upload Dropzone Card -->
+      <section id="videoUploadCard" class="card" style="margin-bottom: 1.75rem;">
+        <div class="card-body">
+          <input type="file" id="videoFileInput" accept=".mp4,.avi,.mov,.mkv,.webm,.m4v" class="d-none">
+          <div id="videoDropzone" class="video-dropzone">
+            <div class="dropzone-icon">📁</div>
+            <div class="dropzone-title">Drag & drop your vehicle video file here</div>
+            <p class="dropzone-desc">Supports MP4, AVI, MOV, MKV, WebM up to 500 MB</p>
+            <button type="button" id="browseVideoBtn" class="btn btn-secondary">
+              <span>📂</span> Browse Video File
+            </button>
+            <div id="selectedFileInfo" class="selected-file-badge d-none">
+              <span>🎬</span>
+              <span id="selectedFileName">video.mp4</span>
+              <span id="selectedFileSize" class="text-secondary">(0 MB)</span>
             </div>
-            <p class="metric-desc text-secondary">Frames are preprocessed and inferred with CUDA on your RTX 3050 GPU, then streamed as MJPEG.</p>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <!-- Latest Captured Plate -->
-        <section class="card">
-          <div class="card-body">
-            <h2 class="card-title">Latest Saved Plate</h2>
-            <div id="latestPlate" class="latest-plate-value">No record</div>
-            <p id="latestDetails" class="text-secondary">Records load automatically from the backend API.</p>
+      <!-- Video Processing & Live Preview Card -->
+      <section id="videoProcessingCard" class="card d-none" style="margin-bottom: 1.75rem;">
+        <div class="card-body">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <h2 id="videoJobTitle" class="card-heading" style="margin-bottom: 0.15rem;">Processing Video...</h2>
+              <span id="videoStatusBadge" class="badge badge-warning">Analyzing frames</span>
+            </div>
+            <div id="videoActionTools" class="d-none" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <a id="downloadAnnotatedVideoBtn" class="btn btn-sm btn-success" href="#" download>
+                📥 Download Annotated Video (.mp4)
+              </a>
+              <button id="exportVideoCsvBtn" class="btn btn-sm btn-secondary">
+                📥 CSV
+              </button>
+              <button id="exportVideoJsonBtn" class="btn btn-sm btn-secondary">
+                📥 JSON
+              </button>
+            </div>
           </div>
-        </section>
-      </div>
+
+          <!-- Progress Bar -->
+          <div class="progress-container">
+            <div id="videoProgressBar" class="progress-bar-fill"></div>
+          </div>
+
+          <!-- Video Metrics Strip -->
+          <div class="video-metrics-strip">
+            <div>
+              <span>Progress:</span>
+              <strong id="videoProgressText">0%</strong>
+            </div>
+            <div>
+              <span>Frames Processed:</span>
+              <strong id="videoFramesText">0 / --</strong>
+            </div>
+            <div>
+              <span>GPU Inference Speed:</span>
+              <strong id="videoFpsText">-- FPS</strong>
+            </div>
+            <div>
+              <span>Video Duration:</span>
+              <strong id="videoDurationText">--</strong>
+            </div>
+            <div>
+              <span>Plates Detected:</span>
+              <strong id="videoPlatesCountText" class="text-accent">0</strong>
+            </div>
+          </div>
+
+          <!-- Live Processing Frame Display -->
+          <div style="margin-top: 1.25rem;">
+            <img id="videoProcessingPreview" class="live-process-preview" alt="Video analysis frame preview" style="display: none;">
+          </div>
+
+          <!-- Detected Plates in this Video -->
+          <div id="videoResultsSection" style="margin-top: 1.75rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">
+              🚗 Plates Detected in Video (<span id="galleryPlatesCount">0</span>)
+            </h3>
+            <div id="videoPlatesGallery" class="plates-gallery-grid">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
 
       <!-- Historical Scans Table -->
       <div class="grid-full">
@@ -214,6 +310,7 @@
                 <thead>
                   <tr>
                     <th>Plate Number</th>
+                    <th>Source</th>
                     <th>Saved Timestamp</th>
                     <th>OCR Confidence</th>
                     <th>Detection Confidence</th>
@@ -221,7 +318,7 @@
                 </thead>
                 <tbody id="recordsBody">
                   <tr>
-                    <td colspan="4" class="text-secondary">Loading records…</td>
+                    <td colspan="5" class="text-secondary">Loading records…</td>
                   </tr>
                 </tbody>
               </table>
