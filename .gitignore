@@ -1,0 +1,13 @@
+# Large training and evaluation data
+number_plates/
+numberplates/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Python environments
+.venv/
+venv/
+env/

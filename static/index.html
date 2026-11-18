@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlateVision | License Plate Scanner Dashboard</title>
+  <link href="style.css" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Header & Navigation -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a class="navbar-brand" href="index.html">
+        <span class="brand-mark">PV</span>
+        <div class="brand-text">
+          <strong>PlateVision</strong>
+          <small>GPU License Plate Scanner</small>
+        </div>
+      </a>
+
+      <nav class="nav-menu">
+        <a class="nav-link active" href="index.html">Dashboard</a>
+        <a class="nav-link" href="guide.html">How to Use</a>
+        <a class="nav-link" href="about.html">About</a>
+        <a class="nav-link" href="contact.html">Contact</a>
+      </nav>
+
+      <div class="nav-actions">
+        <span id="scannerStatus" class="badge badge-secondary">Scanner offline</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard -->
+  <main class="container">
+    <!-- Hardware & Model Status Bar -->
+    <div class="system-spec-bar">
+      <div class="spec-item">
+        <span>⚡ Acceleration:</span>
+        <strong>NVIDIA RTX 3050 GPU (CUDA 12.6)</strong>
+      </div>
+      <div class="spec-divider"></div>
+      <div class="spec-item">
+        <span>🧠 Detection Engine:</span>
+        <strong>YOLO11x Model (FP16)</strong>
+      </div>
+      <div class="spec-divider"></div>
+      <div class="spec-item">
+        <span>🔤 Recognition:</span>
+        <strong>EasyOCR + CLAHE Preprocessor</strong>
+      </div>
+      <div class="spec-divider"></div>
+      <div class="spec-item">
+        <span>⏱️ Cooldown:</span>
+        <strong>30s Per Unique Plate</strong>
+      </div>
+    </div>
+
+    <!-- Dashboard Title & Action Controls -->
+    <div class="dashboard-header">
+      <div class="dashboard-title">
+        <span class="tag-accent">Real-time GPU Detection & Recognition</span>
+        <h1>Camera Plate Detection Dashboard</h1>
+        <p class="page-lead">Start the scanner to stream live frames, recognize vehicle registration numbers, and inspect confidence scores.</p>
+      </div>
+      <div class="dashboard-actions">
+        <button id="startButton" class="btn btn-success">
+          <span>▶</span> Start camera
+        </button>
+        <button id="stopButton" class="btn btn-outline" disabled>
+          <span>⏹</span> Stop
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Quick Stats Row -->
+    <div class="quick-stats-grid">
+      <div class="stat-pill">
+        <div class="stat-icon">🚗</div>
+        <div class="stat-info">
+          <div id="totalScans" class="stat-value">--</div>
+          <div class="stat-label">Total Plates Logged</div>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-info">
+          <div id="avgConfidence" class="stat-value">--%</div>
+          <div class="stat-label">Avg OCR Confidence</div>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-icon">🚀</div>
+        <div class="stat-info">
+          <div id="peakFps" class="stat-value">-- FPS</div>
+          <div class="stat-label">Peak Pipeline FPS</div>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-icon">📐</div>
+        <div class="stat-info">
+          <div class="stat-value">896 × 504</div>
+          <div class="stat-label">Stream Resolution</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Tip Callout Banner -->
+    <div class="tip-banner">
+      <div class="tip-content">
+        <span>💡</span>
+        <span>
+          <strong>Pro Tip:</strong> Position the camera facing oncoming vehicles at a 15–25° angle with clear diffuse lighting for best OCR read rates.
+        </span>
+      </div>
+      <a href="guide.html" class="btn btn-sm btn-secondary">Read Full Setup Guide →</a>
+    </div>
+
+    <!-- Error Alert Box -->
+    <div id="cameraError" class="alert alert-danger d-none" role="alert"></div>
+
+    <!-- Main Grid: Video Stream + Stats Sidebar + Records Table -->
+    <div class="dashboard-grid">
+      <!-- Camera Feed Frame -->
+      <div class="grid-main">
+        <section class="card h-100">
+          <div class="card-body">
+            <div id="cameraFrame" class="camera-frame">
+              <img id="cameraPreview" alt="Live annotated license plate camera feed">
+              <div class="camera-placeholder">
+                <div class="placeholder-content">
+                  <div class="placeholder-icon">📷</div>
+                  <h2>Scanner is stopped</h2>
+                  <p>Click <strong>Start camera</strong> above to load the YOLO model onto your GPU and begin scanning.</p>
+                </div>
+              </div>
+              <span class="camera-label">
+                <span id="cameraDot" class="status-dot"></span>
+                <span id="cameraLabel">No camera stream</span>
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Performance & Latest Plate Sidebar -->
+      <div class="grid-sidebar">
+        <!-- Model FPS Metric -->
+        <section class="card">
+          <div class="card-body">
+            <h2 class="card-title">Model Performance</h2>
+            <div class="metric">
+              <div id="cameraFps" class="metric-value">-- FPS</div>
+              <small class="text-secondary">YOLO + EasyOCR inference</small>
+            </div>
+            <p class="metric-desc text-secondary">Frames are preprocessed and inferred with CUDA on your RTX 3050 GPU, then streamed as MJPEG.</p>
+          </div>
+        </section>
+
+        <!-- Latest Captured Plate -->
+        <section class="card">
+          <div class="card-body">
+            <h2 class="card-title">Latest Saved Plate</h2>
+            <div id="latestPlate" class="latest-plate-value">No record</div>
+            <p id="latestDetails" class="text-secondary">Records load automatically from the backend API.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Historical Scans Table -->
+      <div class="grid-full">
+        <section class="card">
+          <div class="card-body">
+            <div class="records-header">
+              <div>
+                <h2 class="card-heading">Recent Plate Records</h2>
+                <p class="text-secondary">Logged in plate_records.json with timestamps and confidence scores.</p>
+              </div>
+
+              <!-- Records Control Tools -->
+              <div class="records-tools">
+                <div class="search-box">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="searchPlateInput" class="search-input" placeholder="Filter plate number…">
+                </div>
+
+                <label class="toggle-label" title="Play a subtle audio alert when a new plate is detected">
+                  <input type="checkbox" id="audioAlertToggle" checked>
+                  <span>Chime on scan</span>
+                </label>
+
+                <label class="toggle-label" title="Automatically poll for new records every 2.5s">
+                  <input type="checkbox" id="autoRefreshToggle" checked>
+                  <span>Auto-refresh</span>
+                </label>
+
+                <button id="refreshButton" class="btn btn-sm btn-outline" title="Refresh records table immediately">
+                  🔄 Refresh
+                </button>
+                <button id="exportCsvBtn" class="btn btn-sm btn-secondary" title="Export records table to CSV file">
+                  📥 CSV
+                </button>
+                <button id="exportJsonBtn" class="btn btn-sm btn-secondary" title="Export records table to JSON file">
+                  📥 JSON
+                </button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+              <table class="records-table">
+                <thead>
+                  <tr>
+                    <th>Plate Number</th>
+                    <th>Saved Timestamp</th>
+                    <th>OCR Confidence</th>
+                    <th>Detection Confidence</th>
+                  </tr>
+                </thead>
+                <tbody id="recordsBody">
+                  <tr>
+                    <td colspan="4" class="text-secondary">Loading records…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="site-footer">
+    <div class="container footer-container">
+      <div>
+        <strong>PlateVision AI</strong> — Real-time vehicle license plate scanner powered by YOLO11x & EasyOCR.
+        <div class="text-secondary" style="margin-top: 0.25rem;">Accelerated with NVIDIA CUDA on GeForce RTX 3050 Laptop GPU.</div>
+      </div>
+      <nav class="footer-nav">
+        <a href="index.html">Dashboard</a>
+        <a href="guide.html">User Guide</a>
+        <a href="about.html">About System</a>
+        <a href="contact.html">Support & Contact</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
